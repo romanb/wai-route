@@ -15,7 +15,29 @@ import qualified Data.ByteString.Lazy as L
 import qualified Data.HashMap.Strict as M
 import qualified Data.Text as T
 
+-------------------------------------------------------------------------------
+-- Routing
+
 type Handler = [(Text, Text)] -> Application
+
+route :: [(Text, Handler)] -> Application
+route rs rq = maybe notFound ($ rq) $ lookup tree path
+  where
+    tree = mkTree rs
+    path = filter (not . T.null) (pathInfo rq)
+    notFound = return $ responseLBS status404 [] L.empty
+
+lookup :: RouteTree -> [Text] -> Maybe Application
+lookup t p = go p [] t
+  where
+    mkApp cvs (h, cs) = h $ cs `zip` reverse cvs
+    go []     cvs n = mkApp cvs `fmap` handler n
+    go (p:ps) cvs n = maybe (capture n >>= go ps (p:cvs))
+                            (go ps cvs)
+                            (M.lookup p $ dirs n)
+
+-------------------------------------------------------------------------------
+-- Tree Construction
 
 data RouteTree = RouteTree
     { dirs    :: HashMap Text RouteTree
@@ -23,17 +45,10 @@ data RouteTree = RouteTree
     , handler :: Maybe (Handler, [Text])
     }
 
-data Seg = Dir     !Text
-         | Capture !Text
+data Seg = Dir !Text | Capture !Text
 
 emptyTree :: RouteTree
 emptyTree = RouteTree M.empty Nothing Nothing
-
-route :: [(Text, Handler)] -> Application
-route rs rq = maybe notFound ($ rq) $ lookup tree (pathInfo rq)
-  where
-    tree = mkTree rs
-    notFound = return $ responseLBS status404 [] L.empty
 
 mkTree :: [(Text, Handler)] -> RouteTree
 mkTree = foldl' addRoute emptyTree
@@ -54,12 +69,3 @@ parsePath = map f . filter (not . T.null) . T.split (=='/')
   where
     f s | T.head s == ':' = Capture (T.tail s)
         | otherwise       = Dir s
-
-lookup :: RouteTree -> [Text] -> Maybe Application
-lookup t p = go p [] t
-  where
-    mkApp cvs (h, cs) = h $ cs `zip` reverse cvs
-    go []     cvs n = mkApp cvs `fmap` handler n
-    go (p:ps) cvs n = maybe (capture n >>= go ps (p:cvs))
-                            (go ps cvs)
-                            (M.lookup p $ dirs n)

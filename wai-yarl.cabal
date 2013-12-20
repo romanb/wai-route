@@ -39,9 +39,12 @@ executable wai-yarl-sample
 
     build-depends:
         base
+      , bytestring == 0.10.*
+      , http-types == 0.8.*
       , wai-yarl
       , wai == 2.0.*
       , text == 0.11.*
+      , warp == 2.0.*
 
     ghc-options:
         -Wall
