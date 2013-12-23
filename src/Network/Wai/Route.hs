@@ -26,7 +26,7 @@ import qualified Data.Text            as T
 -- | Captured path parameters.
 type PathParams = [(Text, Text)]
 
--- | An 'Application', generalized to any Monad.
+-- | A generalized 'Application'.
 type App m = Request -> m Response
 
 -- | A route 'Handler', given captured 'PathParams', yields an 'App'lication.

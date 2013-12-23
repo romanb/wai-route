@@ -41,7 +41,8 @@ checkRouting = forAll genRoutes check
                     (hId2,       _) = execState result2 (-1, [])
                 in hId1 == hId2 && params1 == params2
 
--- Generators
+-------------------------------------------------------------------------------
+-- Generators & helpers
 
 newtype TestHandler = TestHandler
     { unHandler :: Handler (State (Int, [(Text, Text)])) }
