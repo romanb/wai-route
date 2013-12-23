@@ -1,5 +1,7 @@
 module Network.Wai.Route
     ( Handler
+    , PathParams
+    , App
     , route
     ) where
 
@@ -12,60 +14,61 @@ import Network.Wai
 import Prelude hiding (lookup)
 
 import qualified Data.ByteString.Lazy as L
-import qualified Data.HashMap.Strict as M
-import qualified Data.Text as T
+import qualified Data.HashMap.Strict  as M
+import qualified Data.Text            as T
 
 -------------------------------------------------------------------------------
 -- Routing
 
-type Handler = [(Text, Text)] -> Application
+-- | Captured path parameters.
+type PathParams = [(Text, Text)]
 
-route :: [(Text, Handler)] -> Application
+-- | An 'Application', generalized to any Monad.
+type App m = Request -> m Response
+
+-- | A route 'Handler', given captured 'PathParams', yields an 'App'lication.
+type Handler m = PathParams -> App m
+
+-- | Routes requests to 'Handler's according to a routing table.
+route :: Monad m => [(Text, Handler m)] -> App m
 route rs rq = maybe notFound ($ rq) $ lookup tree path
   where
     tree = mkTree rs
     path = filter (not . T.null) (pathInfo rq)
     notFound = return $ responseLBS status404 [] L.empty
 
-lookup :: RouteTree -> [Text] -> Maybe Application
+lookup :: Monad m => Node m -> [Text] -> Maybe (App m)
 lookup t p = go p [] t
   where
-    mkApp cvs (h, cs) = h $ cs `zip` reverse cvs
-    go []     cvs n = mkApp cvs `fmap` handler n
+    go []     cvs n = let f (h, cs) = h (cs `zip` reverse cvs)
+                      in f `fmap` handler n
     go (p:ps) cvs n = maybe (capture n >>= go ps (p:cvs))
                             (go ps cvs)
                             (M.lookup p $ dirs n)
 
 -------------------------------------------------------------------------------
--- Tree Construction
+-- Tree construction
 
-data RouteTree = RouteTree
-    { dirs    :: HashMap Text RouteTree
-    , capture :: Maybe RouteTree
-    , handler :: Maybe (Handler, [Text])
+data Node m = Node
+    { dirs    :: HashMap Text (Node m)
+    , capture :: Maybe (Node m)
+    , handler :: Maybe (Handler m, [Text])
     }
 
-data Seg = Dir !Text | Capture !Text
+emptyTree :: Node m
+emptyTree = Node M.empty Nothing Nothing
 
-emptyTree :: RouteTree
-emptyTree = RouteTree M.empty Nothing Nothing
-
-mkTree :: [(Text, Handler)] -> RouteTree
+mkTree :: Monad m => [(Text, Handler m)] -> Node m
 mkTree = foldl' addRoute emptyTree
   where
+    branch    = fromMaybe emptyTree
+    parsePath = filter (not . T.null) . T.split (=='/')
     addRoute t (p,h) = go t (parsePath p) []
       where
         go n [] cs = n { handler = Just (h, reverse cs) }
-        go n ((Dir d):ps) cs =
-            let b = branch (M.lookup d $ dirs n)
+        go n (c:ps) cs | T.head c == ':' =
+            let b = branch $ capture n
+            in n { capture = Just (go b ps (T.tail c:cs)) }
+        go n (d:ps) cs =
+            let b = branch $ M.lookup d (dirs n)
             in n { dirs = M.insert d (go b ps cs) (dirs n) }
-        go n ((Capture c):ps) cs =
-            let b = branch (capture n)
-            in n { capture = Just (go b ps (c:cs)) }
-    branch = fromMaybe emptyTree
-
-parsePath :: Text -> [Seg]
-parsePath = map f . filter (not . T.null) . T.split (=='/')
-  where
-    f s | T.head s == ':' = Capture (T.tail s)
-        | otherwise       = Dir s
