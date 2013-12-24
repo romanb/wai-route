@@ -43,7 +43,7 @@ route rs rq = maybe notFound ($ rq) $ lookup tree path
 lookup :: Monad m => Node m -> [Text] -> Maybe (App m)
 lookup t p = go p [] t
   where
-    go []     cvs n = let f (h, cs) = h (cs `zip` reverse cvs)
+    go []     cvs n = let f (h, cs) = h (cs `zip` cvs)
                       in f `fmap` handler n
     go (p:ps) cvs n = maybe (capture n >>= go ps (p:cvs))
                             (go ps cvs)
@@ -68,7 +68,7 @@ mkTree = foldl' addRoute emptyTree
     parsePath = filter (not . T.null) . T.split (=='/')
     addRoute t (p,h) = go t (parsePath p) []
       where
-        go n [] cs = n { handler = Just (h, reverse cs) }
+        go n [] cs = n { handler = Just (h, cs) }
         go n (c:ps) cs | T.head c == ':' =
             let b = branch $ capture n
             in n { capture = Just (go b ps (T.tail c:cs)) }

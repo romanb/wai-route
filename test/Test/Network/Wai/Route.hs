@@ -45,7 +45,7 @@ checkRouting = forAll genRoutes check
 -- Generators & helpers
 
 newtype TestHandler = TestHandler
-    { unHandler :: Handler (State (Int, [(Text, Text)])) }
+    { unHandler :: Handler (State (Int, PathParams)) }
 
 instance Show TestHandler where
     show _ = "<test-handler>"
@@ -93,7 +93,7 @@ genReq r reserved = do
     let zipped = segs `zip` values
         params = map (first T.tail) . filter ((==':') . T.head . fst) $ zipped
         rq = defaultRequest { pathInfo = map toSeg zipped }
-    return (params, rq)
+    return (reverse params, rq)
   where
     segs = T.split (=='/') r
     toSeg (s, v) | T.head s == ':' = v
