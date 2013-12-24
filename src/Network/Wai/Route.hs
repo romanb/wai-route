@@ -3,8 +3,6 @@
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 module Network.Wai.Route
     ( Handler
-    , PathParams
-    , App
     , route
     ) where
 
@@ -23,24 +21,19 @@ import qualified Data.Text            as T
 -------------------------------------------------------------------------------
 -- Routing
 
--- | Captured path parameters.
-type PathParams = [(Text, Text)]
-
--- | A generalized 'Application'.
-type App m = Request -> m Response
-
--- | A route 'Handler', given captured 'PathParams', yields an 'App'lication.
-type Handler m = PathParams -> App m
+type Handler m = [(Text, Text)] -- ^ The captured path parameters.
+               -> Request       -- ^ The matched 'Request'.
+               -> m Response
 
 -- | Routes requests to 'Handler's according to a routing table.
-route :: Monad m => [(Text, Handler m)] -> App m
+route :: Monad m => [(Text, Handler m)] -> Request -> m Response
 route rs rq = maybe notFound ($ rq) $ lookup tree path
   where
     tree = mkTree rs
     path = filter (not . T.null) (pathInfo rq)
     notFound = return $ responseLBS status404 [] L.empty
 
-lookup :: Monad m => Node m -> [Text] -> Maybe (App m)
+lookup :: Monad m => Node m -> [Text] -> Maybe (Request -> m Response)
 lookup t p = go p [] t
   where
     go []     cvs n = let f (h, cs) = h (cs `zip` cvs)

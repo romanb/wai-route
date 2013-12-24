@@ -45,7 +45,7 @@ checkRouting = forAll genRoutes check
 -- Generators & helpers
 
 newtype TestHandler = TestHandler
-    { unHandler :: Handler (State (Int, PathParams)) }
+    { unHandler :: Handler (State (Int, [(Text, Text)])) }
 
 instance Show TestHandler where
     show _ = "<test-handler>"
@@ -87,7 +87,7 @@ genRoutes = do
 -- Generate a request with a path matching the given route.
 genReq :: Text   -- ^ Route
        -> [Text] -- ^ Reserved names
-       -> Gen (PathParams, Request)
+       -> Gen ([(Text, Text)], Request)
 genReq r reserved = do
     values <- vectorOf (length segs) genDir `suchThat` all (`notElem` reserved)
     let zipped = segs `zip` values
