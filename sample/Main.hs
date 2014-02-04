@@ -6,7 +6,7 @@ import Data.Text.Encoding (encodeUtf8)
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Handler.Warp
-import Network.Wai.Route
+import Network.Wai.Route (route)
 
 import qualified Data.ByteString.Lazy as L
 
