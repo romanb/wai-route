@@ -7,10 +7,12 @@ module Network.Wai.Route.Tree
     , lookup
     ) where
 
+import Control.Applicative ((<|>))
 import Data.List (foldl')
 import Data.Text (Text)
 import Data.HashMap.Strict (HashMap)
 import Data.Maybe (fromMaybe)
+import Data.Monoid
 import Prelude hiding (lookup)
 
 import qualified Data.HashMap.Strict  as M
@@ -22,17 +24,20 @@ data Tree a = Tree
     , payload :: Maybe (a, [Text])
     }
 
-emptyTree :: Tree m
-emptyTree = Tree M.empty Nothing Nothing
+instance Monoid (Tree a) where
+    mempty        = Tree mempty Nothing Nothing
+    a `mappend` b = Tree (subtree a <> subtree b)
+                         (capture a <> capture b)
+                         (payload a <|> payload b)
 
 fromList :: [(Text, a)] -> Tree a
-fromList = foldl' addRoute emptyTree
+fromList = foldl' addRoute mempty
   where
-    branch    = fromMaybe emptyTree
+    branch    = fromMaybe mempty
     parsePath = filter (not . T.null) . T.split (=='/')
-    addRoute t (p,h) = go t (parsePath p) []
+    addRoute t (p,pl) = go t (parsePath p) []
       where
-        go n [] cs = n { payload = Just (h, cs) }
+        go n [] cs = n { payload = Just (pl, cs) }
         go n (c:ps) cs | T.head c == ':' =
             let b = branch $ capture n
             in n { capture = Just (go b ps (T.tail c:cs)) }
@@ -43,7 +48,7 @@ fromList = foldl' addRoute emptyTree
 lookup :: Tree a -> [Text] -> Maybe (a, [(Text, Text)])
 lookup t p = go p [] t
   where
-    go []     cvs n = let f (h, cs) = (h, cs `zip` cvs)
+    go []     cvs n = let f (pl, cs) = (pl, cs `zip` cvs)
                       in f `fmap` payload n
     go (s:ss) cvs n = maybe (capture n >>= go ss (s:cvs))
                             (go ss cvs)
