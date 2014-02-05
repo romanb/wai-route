@@ -40,7 +40,7 @@ fromList = foldl' addRoute mempty
         go n [] cs = n { payload = Just (pl, cs) }
         go n (c:ps) cs | T.head c == ':' =
             let b = branch $ capture n
-            in n { capture = Just (go b ps (T.tail c:cs)) }
+            in n { capture = Just $! go b ps (T.tail c:cs) }
         go n (d:ps) cs =
             let b = branch $ M.lookup d (subtree n)
             in n { subtree = M.insert d (go b ps cs) (subtree n) }
