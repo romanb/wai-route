@@ -6,6 +6,7 @@ module Network.Wai.Route.Tree
     ( Tree
     , fromList
     , lookup
+    , segments
     ) where
 
 import Control.Applicative ((<|>))
@@ -37,8 +38,7 @@ fromList :: [(ByteString, a)] -> Tree a
 fromList = foldl' addRoute mempty
   where
     branch    = fromMaybe mempty
-    parsePath = filter (not . B.null) . B.split slash
-    addRoute t (p,pl) = go t (parsePath p) []
+    addRoute t (p,pl) = go t (segments p) []
       where
         go n [] cs = n { payload = Just (pl, cs) }
         go n (c:ps) cs | B.head c == colon =
@@ -57,6 +57,9 @@ lookup t p = go p [] t
     go (s:ss) cvs n = maybe (capture n >>= go ss (urlDecode False s : cvs))
                             (go ss cvs)
                             (M.lookup s $ subtree n)
+
+segments :: ByteString -> [ByteString]
+segments = filter (not . B.null) . B.split slash
 
 slash, colon :: Word8
 slash = 0x2F
