@@ -1,18 +1,17 @@
 -- This Source Code Form is subject to the terms of the Mozilla Public
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 {-# LANGUAGE OverloadedStrings    #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Test.Network.Wai.Route (tests) where
 
-import Control.Arrow (first)
 import Control.Applicative ((<$>))
 import Control.Monad.State.Strict
+import Data.ByteString (ByteString)
 import Data.List (nub)
 import Data.Monoid ((<>))
-import Data.Text (Text)
-import Data.Text.Encoding (decodeUtf8)
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Route
@@ -22,7 +21,6 @@ import Test.Tasty.QuickCheck
 
 import qualified Data.ByteString.Char8 as C
 import qualified Data.ByteString.Lazy  as L
-import qualified Data.Text             as T
 
 tests :: TestTree
 tests = testProperty "Routing" checkRouting
@@ -32,7 +30,7 @@ checkRouting = forAll genRoutes check
   where
     check routes =
         let h1  = route $ map (fmap unHandler) routes
-            rsv = routes >>= T.split (=='/') . fst
+            rsv = routes >>= C.split '/' . fst
         in conjoin . flip map routes $ \(r, TestHandler h2) ->
             forAll (genReq r rsv) $ \(params2, rq) ->
                 let result1 = h1 rq    -- routed
@@ -45,7 +43,7 @@ checkRouting = forAll genRoutes check
 -- Generators & helpers
 
 newtype TestHandler = TestHandler
-    { unHandler :: Handler (State (Int, [(Text, Text)])) }
+    { unHandler :: Handler (State (Int, [(ByteString, ByteString)])) }
 
 instance Show TestHandler where
     show _ = "<test-handler>"
@@ -55,24 +53,22 @@ handler i = TestHandler $ \p _ -> do
     put (i, p)
     return $ responseLBS status200 [] L.empty
 
-genDir :: Gen Text
-genDir =  decodeUtf8 . urlEncode False . C.pack
-      <$> listOf1 arbitrary `suchThat` ((/=':') . head)
+genDir :: Gen ByteString
+genDir =  urlEncode False . C.pack <$> listOf1 arbitrary `suchThat` ((/=':') . head)
 
-genCapture :: Gen Text
-genCapture =  (":"<>) . decodeUtf8 . urlEncode False . C.pack
-          <$> listOf1 arbitrary
+genCapture :: Gen ByteString
+genCapture =  (":"<>) . urlEncode False . C.pack <$> listOf1 arbitrary
 
-genRoute :: Gen Text
+genRoute :: Gen ByteString
 genRoute = do
     n <- choose (1, 10)
     s <- vectorOf n (oneof [genDir, genCapture])
-    return $ T.intercalate "/" s
+    return $ C.intercalate "/" s
 
 -- Generates random routing tables without ambiguous routes.
 -- Two routes are ambiguous if they have an equal number of segments and
 -- equal static segments appear in the same positions.
-genRoutes :: Gen [(Text, TestHandler)]
+genRoutes :: Gen [(ByteString, TestHandler)]
 genRoutes = do
     n <- choose (0, 10)
     r <- vectorOf n genRoute `suchThat` noAmbiguity
@@ -80,24 +76,25 @@ genRoutes = do
   where
     noAmbiguity rs = let rs' = map normalize rs
                      in length (nub rs') == length rs'
-    normalize = filter ((/=':') . T.head . snd)
+    normalize = filter ((/=':') . C.head . snd)
               . zip ([0..] :: [Int])
-              . T.split (=='/')
+              . C.split '/'
 
 -- Generate a request with a path matching the given route.
-genReq :: Text   -- ^ Route
-       -> [Text] -- ^ Reserved names
-       -> Gen ([(Text, Text)], Request)
+genReq :: ByteString   -- ^ Route
+       -> [ByteString] -- ^ Reserved names
+       -> Gen ([(ByteString, ByteString)], Request)
 genReq r reserved = do
     values <- vectorOf (length segs) genDir `suchThat` all (`notElem` reserved)
     let zipped = segs `zip` values
-        params = map (first T.tail) . filter ((==':') . T.head . fst) $ zipped
-        rq = defaultRequest { pathInfo = map toSeg zipped }
-    return (reverse params, rq)
+        params = reverse . map toParam . filter ((==':') . C.head . fst) $ zipped
+        rq = defaultRequest { rawPathInfo = C.intercalate "/"  $ map toSeg zipped }
+    return (params, rq)
   where
-    segs = T.split (=='/') r
-    toSeg (s, v) | T.head s == ':' = v
+    segs = C.split '/' r
+    toSeg (s, v) | C.head s == ':' = v
                  | otherwise       = s
+    toParam (k, v) = (C.tail k, urlDecode False v)
 
 instance Show Request where
-    show = show . T.intercalate "/" . pathInfo
+    show = show . rawPathInfo

@@ -1,30 +1,32 @@
 -- This Source Code Form is subject to the terms of the Mozilla Public
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+{-# LANGUAGE OverloadedStrings #-}
+
 module Network.Wai.Route
     ( Handler
     , route
     ) where
 
-import Data.Text (Text)
+import Data.ByteString (ByteString)
 import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Route.Tree (fromList, lookup)
-import Prelude hiding (lookup)
 
-import qualified Data.ByteString.Lazy as L
-import qualified Data.Text            as T
+import qualified Data.ByteString        as B
+import qualified Data.ByteString.Lazy   as L
+import qualified Network.Wai.Route.Tree as Tree
 
-type Handler m = [(Text, Text)] -- ^ The captured path parameters.
-               -> Request       -- ^ The matched 'Request'.
+type Handler m = [(ByteString, ByteString)] -- ^ The captured path parameters.
+               -> Request                   -- ^ The matched 'Request'.
                -> m Response
 
 -- | Routes requests to 'Handler's according to a routing table.
-route :: Monad m => [(Text, Handler m)] -> Request -> m Response
-route rs rq = case lookup tree path of
+route :: Monad m => [(ByteString, Handler m)] -> Request -> m Response
+route rs rq = case Tree.lookup (Tree.fromList rs) path of
     Just (f, c) -> f c rq
     Nothing     -> notFound
   where
-    tree = fromList rs
-    path = filter (not . T.null) (pathInfo rq)
+    path     = filter (not . B.null) (B.split slash $ rawPathInfo rq)
     notFound = return $ responseLBS status404 [] L.empty
+    slash    = 0x2F

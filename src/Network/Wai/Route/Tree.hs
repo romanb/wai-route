@@ -1,6 +1,7 @@
 -- This Source Code Form is subject to the terms of the Mozilla Public
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 module Network.Wai.Route.Tree
     ( Tree
     , fromList
@@ -8,20 +9,22 @@ module Network.Wai.Route.Tree
     ) where
 
 import Control.Applicative ((<|>))
+import Data.ByteString (ByteString)
 import Data.List (foldl')
-import Data.Text (Text)
 import Data.HashMap.Strict (HashMap)
 import Data.Maybe (fromMaybe)
 import Data.Monoid
+import Data.Word
+import Network.HTTP.Types (urlDecode)
 import Prelude hiding (lookup)
 
-import qualified Data.HashMap.Strict  as M
-import qualified Data.Text            as T
+import qualified Data.ByteString     as B
+import qualified Data.HashMap.Strict as M
 
 data Tree a = Tree
-    { subtree :: HashMap Text (Tree a)
+    { subtree :: HashMap ByteString (Tree a)
     , capture :: Maybe (Tree a)
-    , payload :: Maybe (a, [Text])
+    , payload :: Maybe (a, [ByteString])
     }
 
 instance Monoid (Tree a) where
@@ -30,26 +33,30 @@ instance Monoid (Tree a) where
                          (capture a <> capture b)
                          (payload a <|> payload b)
 
-fromList :: [(Text, a)] -> Tree a
+fromList :: [(ByteString, a)] -> Tree a
 fromList = foldl' addRoute mempty
   where
     branch    = fromMaybe mempty
-    parsePath = filter (not . T.null) . T.split (=='/')
+    parsePath = filter (not . B.null) . B.split slash
     addRoute t (p,pl) = go t (parsePath p) []
       where
         go n [] cs = n { payload = Just (pl, cs) }
-        go n (c:ps) cs | T.head c == ':' =
+        go n (c:ps) cs | B.head c == colon =
             let b = branch $ capture n
-            in n { capture = Just $! go b ps (T.tail c:cs) }
+            in n { capture = Just $! go b ps (B.tail c : cs) }
         go n (d:ps) cs =
             let b = branch $ M.lookup d (subtree n)
             in n { subtree = M.insert d (go b ps cs) (subtree n) }
 
-lookup :: Tree a -> [Text] -> Maybe (a, [(Text, Text)])
+lookup :: Tree a -> [ByteString] -> Maybe (a, [(ByteString, ByteString)])
 lookup t p = go p [] t
   where
     go []     cvs n = let f (pl, cs) = (pl, cs `zip` cvs)
                       in f `fmap` payload n
-    go (s:ss) cvs n = maybe (capture n >>= go ss (s:cvs))
+    go (s:ss) cvs n = maybe (capture n >>= go ss (urlDecode False s : cvs))
                             (go ss cvs)
                             (M.lookup s $ subtree n)
+
+slash, colon :: Word8
+slash = 0x2F
+colon = 0x3A

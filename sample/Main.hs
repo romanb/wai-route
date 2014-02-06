@@ -2,7 +2,6 @@
 
 module Main where
 
-import Data.Text.Encoding (encodeUtf8)
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Handler.Warp
@@ -23,4 +22,4 @@ main = run 4242 $
         print $ "pathInfo: " ++ show (pathInfo rq)
         print $ "captured: " ++ show p
         return $ responseLBS status200 []
-               $ maybe L.empty (L.fromStrict . encodeUtf8) (lookup "baz" p)
+               $ maybe L.empty L.fromStrict (lookup "baz" p)
