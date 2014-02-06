@@ -15,7 +15,7 @@ import Data.HashMap.Strict (HashMap)
 import Data.Maybe (fromMaybe)
 import Data.Monoid
 import Data.Word
-import Network.HTTP.Types (urlDecode)
+import Network.HTTP.Types (urlDecode, urlEncode)
 import Prelude hiding (lookup)
 
 import qualified Data.ByteString     as B
@@ -45,8 +45,9 @@ fromList = foldl' addRoute mempty
             let b = branch $ capture n
             in n { capture = Just $! go b ps (B.tail c : cs) }
         go n (d:ps) cs =
-            let b = branch $ M.lookup d (subtree n)
-            in n { subtree = M.insert d (go b ps cs) (subtree n) }
+            let d' = urlEncode False d
+                b  = branch $ M.lookup d' (subtree n)
+            in n { subtree = M.insert d' (go b ps cs) (subtree n) }
 
 lookup :: Tree a -> [ByteString] -> Maybe (a, [(ByteString, ByteString)])
 lookup t p = go p [] t

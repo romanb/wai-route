@@ -7,6 +7,7 @@
 
 module Test.Network.Wai.Route (tests) where
 
+import Control.Arrow (first)
 import Control.Applicative ((<$>))
 import Control.Monad.State.Strict
 import Data.ByteString (ByteString)
@@ -54,10 +55,12 @@ handler i = TestHandler $ \p _ -> do
     return $ responseLBS status200 [] L.empty
 
 genDir :: Gen ByteString
-genDir =  urlEncode False . C.pack <$> listOf1 arbitrary `suchThat` ((/=':') . head)
+genDir = C.pack <$> listOf1 arbitrary `suchThat` f
+  where
+    f d = head d /= ':' && '/' `notElem` d
 
 genCapture :: Gen ByteString
-genCapture =  (":"<>) . urlEncode False . C.pack <$> listOf1 arbitrary
+genCapture =  (":"<>) . C.pack <$> listOf1 arbitrary `suchThat` notElem '/'
 
 genRoute :: Gen ByteString
 genRoute = do
@@ -87,14 +90,13 @@ genReq :: ByteString   -- ^ Route
 genReq r reserved = do
     values <- vectorOf (length segs) genDir `suchThat` all (`notElem` reserved)
     let zipped = segs `zip` values
-        params = reverse . map toParam . filter ((==':') . C.head . fst) $ zipped
+        params = reverse . map (first C.tail) . filter ((==':') . C.head . fst) $ zipped
         rq = defaultRequest { rawPathInfo = C.intercalate "/"  $ map toSeg zipped }
     return (params, rq)
   where
     segs = C.split '/' r
-    toSeg (s, v) | C.head s == ':' = v
-                 | otherwise       = s
-    toParam (k, v) = (C.tail k, urlDecode False v)
+    toSeg (s, v) | C.head s == ':' = urlEncode False v
+                 | otherwise       = urlEncode False s
 
 instance Show Request where
     show = show . rawPathInfo
