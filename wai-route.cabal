@@ -1,11 +1,19 @@
 name:                wai-route
 version:             0.1.0
 synopsis:            Minimalistic, efficient routing for WAI
+description:
+    .
+    Simple routing for applications using the WAI, based on an
+    efficient tree structure. Routes are defined as string literals
+    and path segments prefixed with a ':' indicate captures.
+    .
+    A sample is available at: <https://github.com/romanb/wai-route/blob/master/sample/Main.hs>.
+
 license:             OtherLicense
 license-file:        LICENSE
 author:              Roman S. Borschel
 maintainer:          Roman S. Borschel <roman@pkaboo.org>
-copyright:           2013 Roman S. Borschel
+copyright:           2014 Roman S. Borschel
 category:            Web
 build-type:          Simple
 extra-source-files:  README.md
