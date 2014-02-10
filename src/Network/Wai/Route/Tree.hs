@@ -37,16 +37,15 @@ instance Monoid (Tree a) where
 fromList :: [(ByteString, a)] -> Tree a
 fromList = foldl' addRoute mempty
   where
-    branch    = fromMaybe mempty
     addRoute t (p,pl) = go t (segments p) []
       where
         go n [] cs = n { payload = Just (pl, cs) }
         go n (c:ps) cs | B.head c == colon =
-            let b = branch $ capture n
+            let b = fromMaybe mempty $ capture n
             in n { capture = Just $! go b ps (B.tail c : cs) }
         go n (d:ps) cs =
             let d' = urlEncode False d
-                b  = branch $ M.lookup d' (subtree n)
+                b  = fromMaybe mempty $ M.lookup d' (subtree n)
             in n { subtree = M.insert d' (go b ps cs) (subtree n) }
 
 lookup :: Tree a -> [ByteString] -> Maybe (a, [(ByteString, ByteString)])

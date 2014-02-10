@@ -15,7 +15,6 @@ import Network.Wai
 import Network.Wai.Route.Tree
 import Prelude hiding (lookup)
 
-import qualified Data.ByteString      as B
 import qualified Data.ByteString.Lazy as L
 
 type Handler m = [(ByteString, ByteString)] -- ^ The captured path parameters.

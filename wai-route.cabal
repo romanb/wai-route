@@ -30,6 +30,10 @@ library
       , http-types           >= 0.8
       , bytestring           >= 0.10
 
+    ghc-options:
+        -Wall
+        -fwarn-tabs
+        -O2
 
 executable wai-route-sample
     default-language: Haskell2010
@@ -46,7 +50,6 @@ executable wai-route-sample
 
     ghc-options:
         -Wall
-        -O2
         -fwarn-tabs
         -threaded
         -with-rtsopts=-T
@@ -58,7 +61,6 @@ executable wai-route-test
     ghc-prof-options: -prof -auto-all
     ghc-options:
         -Wall
-        -O2
         -fwarn-tabs
         -threaded
     other-modules: Test.Network.Wai.Route
