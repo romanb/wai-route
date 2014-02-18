@@ -1,5 +1,5 @@
 name:                wai-route
-version:             0.1.0
+version:             0.1.1
 synopsis:            Minimalistic, efficient routing for WAI
 description:
     .
