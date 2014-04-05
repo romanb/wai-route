@@ -54,7 +54,7 @@ test-suite wai-route-test
         -threaded
     other-modules: Test.Network.Wai.Route
     build-depends:
-        base             == 4.6.*
+        base             == 4.*
       , bytestring       >= 0.10
       , http-types       >= 0.8
       , mtl              >= 2.1
