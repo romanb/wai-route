@@ -16,10 +16,10 @@ main = run 4242 $
           , ("/foo/:bar/:baz", bazHandler)
           ]
   where
-    fooHandler _ _  = return $ responseLBS status200 [] "foo!"
-    barHandler _ _  = return $ responseLBS status200 [] "bar!"
-    bazHandler p rq = do
+    fooHandler _ _  k = k $ responseLBS status200 [] "foo!"
+    barHandler _ _  k = k $ responseLBS status200 [] "bar!"
+    bazHandler p rq k = do
         print $ "pathInfo: " ++ show (pathInfo rq)
         print $ "captured: " ++ show p
-        return $ responseLBS status200 []
-               $ maybe L.empty L.fromStrict (lookup "baz" p)
+        k $ responseLBS status200 []
+          $ maybe L.empty L.fromStrict (lookup "baz" p)
