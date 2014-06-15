@@ -15,8 +15,8 @@ import Data.List (nub)
 import Data.Monoid ((<>))
 import Network.HTTP.Types
 import Network.Wai
+import Network.Wai.Internal (ResponseReceived (..))
 import Network.Wai.Route
-import Test.QuickCheck (Gen)
 import Test.Tasty
 import Test.Tasty.QuickCheck
 
@@ -32,10 +32,11 @@ checkRouting = forAll genRoutes check
     check routes =
         let h1  = route $ map (fmap unHandler) routes
             rsv = routes >>= C.split '/' . fst
+            res = const $ return ResponseReceived
         in conjoin . flip map routes $ \(r, TestHandler h2) ->
             forAll (genReq r rsv) $ \(params2, rq) ->
-                let result1 = h1 rq    -- routed
-                    result2 = h2 [] rq -- direct
+                let result1 = h1 rq res    -- routed
+                    result2 = h2 [] rq res -- direct
                     (hId1, params1) = execState result1 (-1, [])
                     (hId2,       _) = execState result2 (-1, [])
                 in hId1 == hId2 && params1 == params2
@@ -50,9 +51,9 @@ instance Show TestHandler where
     show _ = "<test-handler>"
 
 handler :: Int -> TestHandler
-handler i = TestHandler $ \p _ -> do
+handler i = TestHandler $ \p _ k -> do
     put (i, p)
-    return $ responseLBS status200 [] L.empty
+    k $ responseLBS status200 [] L.empty
 
 genDir :: Gen ByteString
 genDir = C.pack <$> listOf1 arbitrary `suchThat` f

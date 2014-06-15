@@ -1,5 +1,5 @@
 name:                wai-route
-version:             0.1.2
+version:             0.2
 synopsis:            Minimalistic, efficient routing for WAI
 description:
     .
@@ -32,7 +32,7 @@ library
 
     build-depends:
         base                 == 4.*
-      , wai                  >= 2.0
+      , wai                  == 3.0.*
       , unordered-containers >= 0.2
       , http-types           >= 0.8
       , bytestring           >= 0.10
@@ -55,11 +55,11 @@ test-suite wai-route-test
     other-modules: Test.Network.Wai.Route
     build-depends:
         base             == 4.*
-      , bytestring       >= 0.10
-      , http-types       >= 0.8
+      , bytestring
+      , http-types
       , mtl              >= 2.1
       , QuickCheck       >= 2.5
-      , tasty            >= 0.3
-      , tasty-quickcheck >= 0.2
-      , wai              >= 2.0
+      , tasty            >= 0.8
+      , tasty-quickcheck >= 0.8.1
+      , wai
       , wai-route

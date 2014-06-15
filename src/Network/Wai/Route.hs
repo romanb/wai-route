@@ -17,15 +17,22 @@ import Prelude hiding (lookup)
 
 import qualified Data.ByteString.Lazy as L
 
-type Handler m = [(ByteString, ByteString)] -- ^ The captured path parameters.
-               -> Request                   -- ^ The matched 'Request'.
-               -> m Response
+-- | A 'Handler' is a generalized 'Application' that receives the captured
+-- path parameters as its first argument.
+type Handler m = [(ByteString, ByteString)]        -- ^ The captured path parameters.
+               -> Request                          -- ^ The matched 'Request'.
+               -> (Response -> m ResponseReceived) -- ^ The continuation.
+               -> m ResponseReceived
 
 -- | Routes requests to 'Handler's according to a routing table.
-route :: Monad m => [(ByteString, Handler m)] -> Request -> m Response
-route rs rq = case lookup (fromList rs) path of
-    Just (f, c) -> f c rq
-    Nothing     -> notFound
+route :: Monad m
+      => [(ByteString, Handler m)]
+      -> Request
+      -> (Response -> m ResponseReceived)
+      -> m ResponseReceived
+route rs rq k = case lookup (fromList rs) path of
+    Just (f, c) -> f c rq k
+    Nothing     -> k notFound
   where
     path     = segments (rawPathInfo rq)
-    notFound = return $ responseLBS status404 [] L.empty
+    notFound = responseLBS status404 [] L.empty
