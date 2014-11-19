@@ -98,6 +98,3 @@ genReq r reserved = do
     segs = C.split '/' r
     toSeg (s, v) | C.head s == ':' = urlEncode False v
                  | otherwise       = urlEncode False s
-
-instance Show Request where
-    show = show . rawPathInfo
