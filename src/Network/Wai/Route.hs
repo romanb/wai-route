@@ -30,9 +30,9 @@ route :: Monad m
       -> Request
       -> (Response -> m ResponseReceived)
       -> m ResponseReceived
-route rs rq k = case lookup (fromList rs) path of
-    Just (f, c) -> f c rq k
-    Nothing     -> k notFound
+route rs rq k = case lookup (fromList rs) segs of
+    Just  e -> value e (captured $ captures e) rq k
+    Nothing -> k notFound
   where
-    path     = segments (rawPathInfo rq)
+    segs     = segments (rawPathInfo rq)
     notFound = responseLBS status404 [] L.empty
