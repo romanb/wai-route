@@ -1,5 +1,5 @@
 name:                wai-route
-version:             0.3.1
+version:             0.3.1.1
 synopsis:            Minimalistic, efficient routing for WAI
 description:
     .
@@ -9,7 +9,7 @@ description:
     .
     A sample is available at: <https://github.com/romanb/wai-route/blob/master/sample/Main.hs>.
 
-license:             OtherLicense
+license:             MPL-2.0
 license-file:        LICENSE
 author:              Roman S. Borschel
 maintainer:          Roman S. Borschel <roman@pkaboo.org>
