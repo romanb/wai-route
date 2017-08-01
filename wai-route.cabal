@@ -16,7 +16,7 @@ maintainer:          Roman S. Borschel <roman@pkaboo.org>
 copyright:           2014 Roman S. Borschel
 category:            Web
 build-type:          Simple
-extra-source-files:  README.md, sample/*.hs
+extra-source-files:  README.md, sample/*.hs, CHANGELOG.md
 cabal-version:       >=1.10
 
 source-repository head
