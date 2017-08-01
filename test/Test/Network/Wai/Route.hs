@@ -56,12 +56,12 @@ handler i = TestHandler $ \p _ k -> do
     k $ responseLBS status200 [] L.empty
 
 genDir :: Gen ByteString
-genDir = C.pack <$> listOf1 arbitrary `suchThat` f
+genDir = C.pack <$> listOf1 arbitraryASCIIChar `suchThat` f
   where
     f d = head d /= ':' && '/' `notElem` d
 
 genCapture :: Gen ByteString
-genCapture =  (":"<>) . C.pack <$> listOf1 arbitrary `suchThat` notElem '/'
+genCapture =  (":"<>) . C.pack <$> listOf1 arbitraryASCIIChar `suchThat` notElem '/'
 
 genRoute :: Gen ByteString
 genRoute = do
