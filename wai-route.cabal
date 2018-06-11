@@ -19,6 +19,8 @@ build-type:          Simple
 extra-source-files:  README.md, sample/*.hs, CHANGELOG.md
 cabal-version:       >=1.10
 
+tested-with: GHC == 8.0.2, GHC == 8.2.2, GHC == 8.4.3
+
 source-repository head
     type:     git
     location: git@github.com:romanb/wai-route.git
