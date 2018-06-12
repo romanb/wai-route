@@ -8,6 +8,7 @@ module Test.Network.Wai.Route (tests) where
 
 import Control.Monad.State.Strict
 import Data.ByteString (ByteString)
+import Data.Semigroup
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Internal (ResponseReceived (..))
