@@ -30,7 +30,7 @@ import Data.ByteString (ByteString)
 import Data.List (foldl')
 import Data.HashMap.Strict (HashMap)
 import Data.Maybe (fromMaybe)
-import Data.Monoid
+import Data.Semigroup
 import Data.Word
 import Network.HTTP.Types (urlDecode, urlEncode)
 import Prelude hiding (lookup)
@@ -42,24 +42,27 @@ data Tree a = Tree
     { subtree :: HashMap ByteString (Tree a)
     , capture :: Maybe (Tree a)
     , payload :: Maybe (Payload a)
-    }
+    } deriving (Eq, Show)
 
 data Payload a = Payload
-    { value    :: !a
-    , path     :: !ByteString
+    { path     :: !ByteString
+    , value    :: !a
     , captures :: !Captures
-    }
+    } deriving (Eq, Show)
 
 data Captures = Captures
     { params :: [ByteString]
     , values :: [ByteString]
-    }
+    } deriving (Eq, Show)
+
+instance Semigroup (Tree a) where
+    a <> b =  Tree (subtree a <> subtree b)
+                   (capture a <> capture b)
+                   (payload a <|> payload b)
 
 instance Monoid (Tree a) where
-    mempty        = Tree mempty Nothing Nothing
-    a `mappend` b = Tree (subtree a <> subtree b)
-                         (capture a <> capture b)
-                         (payload a <|> payload b)
+    mempty  = Tree mempty Nothing Nothing
+    mappend = (<>)
 
 captureParams :: Captures -> [ByteString]
 captureParams = params
@@ -73,14 +76,15 @@ captured (Captures a b) = zip a b
 fromList :: [(ByteString, a)] -> Tree a
 fromList = foldl' addRoute mempty
   where
-    addRoute t p = go t (segments (fst p)) []
+    addRoute t (p,a) = go t (segments p) []
       where
         go n [] cs =
-            n { payload = Just (Payload (snd p) (fst p) (Captures cs [])) }
+            let pa = Payload p a (Captures cs [])
+            in n { payload = Just pa }
 
         go n (c:ps) cs | B.head c == colon =
-            let b = fromMaybe mempty $ capture n in
-            n { capture = Just $! go b ps (B.tail c : cs) }
+            let b = fromMaybe mempty $ capture n
+            in n { capture = Just $! go b ps (B.tail c : cs) }
 
         go n (d:ps) cs =
             let d' = urlEncode False d
@@ -91,8 +95,8 @@ lookup :: Tree a -> [ByteString] -> Maybe (Payload a)
 lookup t p = go p [] t
   where
     go [] cvs n =
-        let f e = e { captures = Captures (params (captures e)) cvs } in
-        f <$> payload n
+        let f e = e { captures = Captures (params (captures e)) cvs }
+        in f <$> payload n
 
     go (s:ss) cvs n =
         maybe (capture n >>= go ss (urlDecode False s : cvs))
@@ -122,3 +126,4 @@ slash = 0x2F
 colon = 0x3A
 {-# INLINE slash #-}
 {-# INLINE colon #-}
+

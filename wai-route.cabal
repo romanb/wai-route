@@ -1,11 +1,11 @@
 name:                wai-route
 version:             0.3.1.2
-synopsis:            Minimalistic, efficient routing for WAI
+synopsis:            Minimalistic, efficient routing for WAI.
 description:
     .
     Simple routing for applications using the WAI, based on an
     efficient tree structure. Routes are defined as string literals
-    and path segments prefixed with a ':' indicate captures.
+    whereby path segments beginning with a ':' indicate captures.
     .
     A sample is available at: <https://github.com/romanb/wai-route/blob/master/sample/Main.hs>.
 
