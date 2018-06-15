@@ -64,3 +64,15 @@ test-suite wai-route-test
       , tasty-quickcheck >= 0.9
       , wai
       , wai-route
+
+-- executable wai-route-sample
+--     hs-source-dirs: sample
+--     main-is: Main.hs
+--     build-depends:
+--           base
+--         , bytestring
+--         , http-types
+--         , wai
+--         , wai-route
+--         , warp
+
