@@ -9,6 +9,7 @@
   , OverloadedStrings
   , ScopedTypeVariables
   , StandaloneDeriving
+  , StrictData
   , TypeApplications
   , TypeInType
   , TypeOperators
@@ -179,10 +180,13 @@ type Some a = Var "" a
 -- the overlapping patterns (see the documentation for 'Pattern's).
 data Path :: Vars -> Type where
     Val :: Text
-        -> Path vars -> Path vars
+        -> Path vars
+        -> Path vars
     Var :: forall s a vars. (KnownSymbol s, Eq a, FromHttpApiData a)
-        => Proxy# s -> Proxy# a
-        -> Path vars -> Path (Var s a ': vars)
+        => Proxy# s
+        -> Proxy# a
+        -> Path vars
+        -> Path (Var s a ': vars)
     End :: Path '[]
 
 -- | Equality for paths indexed by the same 'Vars' is subsumed by the
@@ -341,7 +345,7 @@ compileRoute (Route p h f) = (pathPattern p, handler)
         Left (ParseInvalid x) -> \rq k -> f rq x >>= k
         Left ParseIncomplete  ->
             -- Note [Incomplete parse]
-            error "wai-route: missing captures"
+            error "wai-route: incomplete parse: missing captures"
 
 {- Note [Incomplete parse]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -366,15 +370,15 @@ infixr 5 :::
 deriving instance Eq (Params vars)
 
 data InvalidParam = InvalidParam
-    { invalidParamName  :: !String
-    , invalidParamValue :: !Text
-    , invalidParamMsg   :: !Text
+    { invalidParamName  :: String
+    , invalidParamValue :: Text
+    , invalidParamMsg   :: Text
     } deriving (Eq, Show, Read)
 
 data ParseError
     = ParseIncomplete
         -- ^ The path contains more variables than the number of captures given.
-    | ParseInvalid !InvalidParam
+    | ParseInvalid InvalidParam
         -- ^ A parameter failed to parse into the type expected by the
         -- corresponding variable of the path.
     deriving (Eq, Show, Read)
@@ -429,9 +433,9 @@ getQueryParam' :: FromHttpApiData a => Request -> Text -> Maybe (Either InvalidP
 getQueryParam' rq = getQueryParam rq . encodeUtf8
 
 data InvalidHeader = InvalidHeader
-    { invalidHeaderName  :: !HeaderName
-    , invalidHeaderValue :: !ByteString
-    , invalidHeaderMsg   :: !Text
+    { invalidHeaderName  :: HeaderName
+    , invalidHeaderValue :: ByteString
+    , invalidHeaderMsg   :: Text
     } deriving (Eq, Show, Read)
 
 getHeader :: FromHttpApiData a => Request -> HeaderName -> Maybe (Either InvalidHeader a)
