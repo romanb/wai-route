@@ -29,8 +29,8 @@ import qualified Data.Trie.Pattern as Trie
 tests :: TestTree
 tests = testGroup "Network.Wai.Route"
     [ testProperty "route" checkRouting
-    , testProperty "parseParams (1/2)" checkParseParams1
-    , testProperty "parseParams (2/2)" checkParseParams2
+    , testProperty "parsePath (1/2)" checkParsePath1
+    , testProperty "parsePath (2/2)" checkParsePath2
     , testProperty "compileRoutes" checkCompileRoutes
     , testProperty "path equivalence (=~=)" checkPathEquiv
     ]
@@ -48,28 +48,28 @@ checkRouting = forAll genTestRoutes check
 
     noRoute _rq k = k $ responseLBS status404 [] mempty
 
-checkParseParams1 :: Property
-checkParseParams1 = forAll (genPath Nothing) $ \(SomePath p) ->
-    let captures = Seq.replicate (Seq.length (pathPattern p)) joker
-    in case parseParams p captures of
+checkParsePath1 :: Property
+checkParsePath1 = forAll (genPath Nothing) $ \(SomePath p) ->
+    let captures = Seq.replicate (pathVarsLen p) joker
+    in case parsePath p captures of
         Left  e -> counterexample (show e) False
         Right _ -> property True
 
-checkParseParams2 :: Property
-checkParseParams2 = forAll ((,) <$> genText <*> arbitrary) $ \(t, i) ->
+checkParsePath2 :: Property
+checkParsePath2 = forAll ((,) <$> genText <*> arbitrary) $ \(t, i) ->
     let
         p0 = str t ./ end
         p1 = str t ./ some @Int ./ end
         c  = Seq.singleton (Capture (Text.pack (show i)))
         c' = Seq.singleton (Capture "NaN")
     in
-        parseParams p0 c         == Right Nil &&
-        parseParams p0 Seq.empty == Right Nil &&
-        parseParams p1 c         == Right (i ::: Nil) &&
-        parseParams p1 Seq.empty == Left ParseIncomplete &&
-        case parseParams p1 c' of
-            Left (ParseInvalid e) -> invalidParamValue e == "NaN"
-            _                     -> False
+        parsePath p0 c         == Right Nil &&
+        parsePath p0 Seq.empty == Right Nil &&
+        parsePath p1 c         == Right (i ::: Nil) &&
+        parsePath p1 Seq.empty == Left PathMissingParams &&
+        case parsePath p1 c' of
+            Left (PathInvalidParam e) -> invalidParamValue e == "NaN"
+            _                         -> False
 
 -- | Compile a list of (non-overlapping) routes into a routing
 -- trie and check that all routes have been preserved by running
