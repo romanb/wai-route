@@ -25,10 +25,16 @@
 --
 -- The basic functionality is provided by 'route' and 'routePrefix'.
 -- The 'RoutingTrie's for the middleware can be constructed directly
--- or by compiling 'Route's, which offers enhanced type-safety.
+-- or by compiling 'Route's via the construction of 'Path's,
+-- which offers enhanced type-safety.
 --
--- Some additional utilities for processing the request method,
--- query parameters and headers in a handler are also provided.
+-- Handlers may furthermore parse parameters from query strings,
+-- via the construction of 'Query's. Some additional functions
+-- for working with HTTP methods and request headers are also
+-- provided.
+--
+-- The sources contain some
+-- <https://github.com/romanb/wai-route/tree/master/examples examples>.
 --
 -- __Strictness__: This module uses @-XStrictData@.
 module Network.Wai.Route
@@ -174,8 +180,9 @@ route rt app rq k = case Trie.match (pathInfo rq) rt of
 --
 -- /Note/: With prefix routing, the 'pathInfo' of the 'Request' passed to
 -- a handler contains only the (unmatched) suffix of the request path, enabling
--- nested / chained routing with multiple routing tries. See the
--- <https://github.com/romanb/wai-route/tree/master/examples examples>.
+-- nested / chained routing with multiple routing tries. An example for
+-- the composition of routing tries can be seen
+-- <https://github.com/romanb/wai-route/tree/master/examples/compose.hs here>.
 routePrefix :: Monad m => RoutingTrie m -> App m -> App m
 routePrefix rt app rq k = case Trie.matchPrefix (pathInfo rq) rt of
     Just (h, cs, str') -> h cs (rq { pathInfo = str' }) k
