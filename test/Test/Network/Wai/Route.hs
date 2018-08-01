@@ -2,132 +2,202 @@
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE
+    OverloadedStrings
+  , TypeApplications
+#-}
 
 module Test.Network.Wai.Route (tests) where
 
+import Control.DeepSeq
 import Control.Monad.State.Strict
-import Data.ByteString (ByteString)
-import Data.Semigroup
+import Data.Foldable (toList)
+import Data.Sequence (Seq (..), (<|))
+import Data.Text (Text)
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Internal (ResponseReceived (..))
 import Network.Wai.Route
-import Network.Wai.Route.Tree (Tree)
 import Test.Tasty
 import Test.Tasty.QuickCheck
 
-import qualified Data.ByteString.Char8  as C
-import qualified Network.Wai.Route.Tree as Tree
+import qualified Data.Sequence as Seq
+import qualified Data.Set as Set
+import qualified Data.Text as Text
+import qualified Data.Trie.Pattern as Trie
 
 tests :: TestTree
 tests = testGroup "Network.Wai.Route"
     [ testProperty "route" checkRouting
-    , testGroup "Network.Wai.Route.Tree"
-        [ testProperty "identity" checkMonoidId
-        , testProperty "associativity" checkMonoidAssoc
-        ]
+    , testProperty "parsePath (1/2)" checkParsePath1
+    , testProperty "parsePath (2/2)" checkParsePath2
+    , testProperty "compileRoutes" checkCompileRoutes
+    , testProperty "path equivalence (=~=)" checkPathEquiv
     ]
 
 checkRouting :: Property
-checkRouting = forAll genRoutes check
+checkRouting = forAll genTestRoutes check
   where
-    check routes =
-        let f = route $ map (fmap unHandler) routes
+    check rs =
+        let f = route $ Trie.fromAssocList (map unTestRoute rs)
             k = const $ return ResponseReceived
-        in conjoin . flip map routes $ \(p, h) ->
-            forAll (genReq p) $ \(params, rq) ->
-                let s = execState (f rq k) (-1, [])
-                in s == (handlerId h, params)
+        in conjoin . flip map rs $ \(TestRoute (p, _)) ->
+            forAll (genRequest p) $ \(params, rq) ->
+                let s = execState (f noRoute rq k) (Seq.empty, Seq.empty)
+                in s == (p, params)
 
-checkMonoidId :: Property
-checkMonoidId = forAll genTree $ \t ->
-    t <> mempty == t && mempty <> t == t
+    noRoute _rq k = k $ responseLBS status404 [] mempty
 
-checkMonoidAssoc :: Property
-checkMonoidAssoc = forAll (replicateM 3 genTree) $ \[t1,t2,t3] ->
-    (t1 <> t2) <> t3 == t1 <> (t2 <> t3)
+checkParsePath1 :: Property
+checkParsePath1 = forAll (genPath Nothing) $ \(SomePath p) ->
+    let captures = Seq.replicate (pathVarsLen p) joker
+    in case parsePath p captures of
+        Left  e -> counterexample (show e) False
+        Right _ -> property True
+
+checkParsePath2 :: Property
+checkParsePath2 = forAll ((,) <$> genText <*> arbitrary) $ \(t, i) ->
+    let
+        p0 = str t ./ end
+        p1 = str t ./ some @Int ./ end
+        c  = Seq.singleton (Capture (Text.pack (show i)))
+        c' = Seq.singleton (Capture "NaN")
+    in
+        parsePath p0 c         == Right Nil &&
+        parsePath p0 Seq.empty == Right Nil &&
+        parsePath p1 c         == Right (i ::: Nil) &&
+        parsePath p1 Seq.empty == Left PathMissingParams &&
+        case parsePath p1 c' of
+            Left (PathInvalidParam e) -> invalidParamValue e == "NaN"
+            _                         -> False
+
+-- | Compile a list of (non-overlapping) routes into a routing
+-- trie and check that all routes have been preserved by running
+-- all handlers.
+checkCompileRoutes :: Property
+checkCompileRoutes = forAll genRoutes $ \rs ->
+    let maxLen = maximum (map (Seq.length . routePattern) rs)
+        captures = Seq.replicate maxLen joker
+        rt = force $ run captures <$> compileRoutes rs
+    in  Set.fromList (map Trie.matchOrd (toList rt))
+        ==
+        Set.fromList (map (Trie.matchOrd . routePattern) rs)
+  where
+    routePattern Route{routePath = p} = pathPattern p
+
+    run captures h =
+        let k = const $ return ResponseReceived
+            s = h captures defaultRequest k
+        in execState s Seq.empty
+
+checkPathEquiv :: Property
+checkPathEquiv = forAll ((,) <$> genPath Nothing <*> genPath Nothing) $
+    \(SomePath p, SomePath p') ->
+        let pp  = pathPattern p
+            pp' = pathPattern p'
+        in  p =~= p'  ==> pp == pp'
+            &&
+            pp == pp' ==> p =~= p'
 
 -------------------------------------------------------------------------------
 -- Generators & helpers
 
-type Params = [(ByteString, ByteString)]
+type TestState = State (Pattern Text, Seq (Capture Text))
 
-data TestHandler = TestHandler
-    { handlerId :: !Int
-    , unHandler :: Handler (State (Int, Params))
-    }
+-- | An (untyped) test route.
+newtype TestRoute = TestRoute
+    { unTestRoute :: (Pattern Text, Handler TestState) }
 
-instance Eq TestHandler where
-    h1 == h2 = handlerId h1 == handlerId h2
+instance Show TestRoute where
+    show (TestRoute (p, _)) = "<test-route; " ++ show p ++ ">"
 
-instance Show TestHandler where
-    show h = "<test-handler-" ++ show (handlerId h) ++ ">"
-
-handler :: Int -> TestHandler
-handler i = TestHandler i $ \p _ k -> do
-    put (i, p)
-    k $ responseLBS status200 [] mempty
-
--- Generate a name for a capture segment in a route.
-genCapture :: Gen ByteString
-genCapture = (":"<>) . C.pack <$> listOf1 arbitraryASCIIChar `suchThat` f
+-- Generate a matcher for a pattern. All 'EqStr' matchers are prefixed
+-- with a @0@ character, to avoid accidental clashes with generated
+-- capture values (see 'genRequest').
+genMatcher :: Gen (Matcher Text)
+genMatcher = oneof [genStr, genVar]
   where
-    f d = '/' `notElem` d
+    genStr = EqStr . ("0" <>) <$> genText
+    genVar = pure AnyStr
 
--- Generate a name for a static segment in a route. These are disambiguated from
--- generated parameter values by a fixed prefix, namely '_'. See 'genParam'.
-genDir :: Gen ByteString
-genDir = C.pack . ('_':) <$> listOf1 arbitraryASCIIChar `suchThat` f
-  where
-    f d = head d /= ':' && '/' `notElem` d
-
--- Generate a parameter value for a capture segment to be used in a request.
--- These are disambiguated from static segments by a fixed prefix, namely 'p',
--- in order not to generate values that accidentily match a static segment of
--- some other route.
-genParam :: Gen ByteString
-genParam = C.pack . ('p':) <$> listOf1 arbitraryASCIIChar
-
-genRoute :: ByteString -> Gen ByteString
-genRoute prefix = do
+genPattern :: Gen (Pattern Text)
+genPattern = do
     n <- choose (1, 10)
-    s <- vectorOf n (oneof [genDir, genCapture])
-    return $ prefix <> C.intercalate "/" s
+    Seq.fromList <$> vectorOf n genMatcher
 
--- Generates routing tables without ambiguous routes (by giving every route a
--- prefix that is unique in this routing table).
-genRoutes :: Gen [(ByteString, TestHandler)]
-genRoutes = do
+genPath :: Maybe Text -> Gen SomePath
+genPath prefix = oneof
+    [ return (SomePath (maybe id str prefix $ end))
+    , do SomePath p <- genPath prefix
+         SomePath <$> (str <$> genText <*> pure p)
+    , do SomePath p <- genPath prefix
+         b <- elements [True,False]
+         return $ if b
+            then SomePath (some @Text p)
+            else SomePath (some @Int  p)
+    ]
+
+-- | A capture value that is valid for all types in a path
+-- generated by 'genPath'.
+joker :: Capture Text
+joker = Capture "42"
+
+genTestRoute :: Gen TestRoute
+genTestRoute = do
+    p <- genPattern
+    return $ TestRoute (p, \params _ k -> do
+        put (p, params)
+        k $ responseLBS status200 [] mempty)
+
+genTestRoutes :: Gen [TestRoute]
+genTestRoutes = do
     n <- choose (0, 100)
-    r <- mapM (genRoute . C.pack . show) [1..n]
-    return $ r `zip` map handler [1..n]
+    replicateM n genTestRoute
 
-genTree :: Gen (Tree TestHandler)
-genTree = Tree.fromList <$> genRoutes
+genRoute :: Maybe Text -> Gen (Route (State (Pattern Text)))
+genRoute prefix = do
+    SomePath p <- genPath prefix
+    return $ defRoute p $ \_params _rq k -> do
+        put (pathPattern p)
+        k $ responseLBS status200 [] mempty
 
--- Generate a request with a path matching the given route,
--- replacing captures with actual parameter values.
-genReq :: ByteString -> Gen (Params, Request)
-genReq r = do
+-- | Generate 1-100 non-overlapping routes.
+genRoutes :: Gen [Route (State (Pattern Text))]
+genRoutes = do
+    n <- choose (0 :: Int, 100)
+    mapM (genRoute . Just . Text.pack . show) [1..n]
+
+-- Generate a request with a path matching the given pattern,
+-- generating capture values for capture segments. Returns the
+-- generated captures and request.
+genRequest :: Pattern Text -> Gen (Seq (Capture Text), Request)
+genRequest pat = do
     -- Pair each segment of the route with a potential parameter value.
     -- Those values which are paired with a capture are the actual parameters.
-    let segs = C.split '/' r
-    values <- vectorOf (length segs) genParam
-    let segs' = segs `zip` values
-    return (mkParams segs', mkReq segs')
+    values <- vectorOf (Seq.length pat) genValue
+    let segs = toList pat `zip` values
+    return (mkParams segs, mkReq segs)
   where
     mkReq segs = defaultRequest
-          { rawPathInfo = C.intercalate "/" (map mkSeg segs)
+          { pathInfo = map mkSeg segs
           }
 
-    mkSeg (seg, val)
-        | C.head seg == ':' = urlEncode False val
-        | otherwise         = urlEncode False seg
+    mkSeg (AnyStr, val) = val
+    mkSeg (EqStr s,  _) = s
 
-    mkParams = reverse . foldr go []
+    mkParams = foldr go Seq.empty
       where
-        go (seg, val) params
-            | C.head seg == ':' = (C.tail seg, val) : params
-            | otherwise         = params
+        go (AnyStr, val) ps = Capture val <| ps
+        go (EqStr _,  _) ps = ps
+
+-- Generate a value for a capture. All values are prefixed with
+-- a '1' character, to avoid accidentally generating a value that is
+-- an exact match for an 'EqStr' matcher in another pattern. If that
+-- were to happen for all matchers of a path (unlikely but possible),
+-- it would result in a spurious test failure.
+genValue :: Gen Text
+genValue = ("1" <>) <$> genText
+
+genText :: Gen Text
+genText = Text.pack <$> listOf arbitrary
 

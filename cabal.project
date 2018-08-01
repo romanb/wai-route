@@ -1,0 +1,5 @@
+packages:
+    ./
+    ../pattern-trie
+    ../bytestring-conversion
+
