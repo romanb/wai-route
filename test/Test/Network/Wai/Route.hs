@@ -13,6 +13,7 @@ import Control.DeepSeq
 import Control.Monad.State.Strict
 import Data.Foldable (toList)
 import Data.Sequence (Seq (..), (<|))
+import Data.Semigroup ((<>))
 import Data.Text (Text)
 import Network.HTTP.Types
 import Network.Wai

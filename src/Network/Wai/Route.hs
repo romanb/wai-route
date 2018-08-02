@@ -121,6 +121,7 @@ import GHC.TypeLits
 import Data.ByteString (ByteString)
 import Data.Kind
 import Data.Sequence (Seq (..), (<|))
+import Data.Semigroup ((<>))
 import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8, decodeUtf8With)
 import Data.Text.Encoding.Error (lenientDecode)
