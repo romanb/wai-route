@@ -2,6 +2,10 @@ name: wai-route
 version: 1.0.0
 synopsis: WAI middleware for path-based request routing with captures.
 category: Web
+description:
+    WAI middleware for path-based request routing with captures,
+    including further utilities for processing query strings and
+    request headers.
 
 license: MPL-2.0
 license-file: LICENSE
