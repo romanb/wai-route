@@ -16,7 +16,7 @@ copyright: 2018 Roman S. Borschel
 build-type: Simple
 cabal-version: 1.18
 
-tested-with: GHC == 8.2.2, GHC == 8.4.3
+tested-with: GHC == 8.2.2, GHC == 8.4.4, GHC == 8.6.2
 
 extra-source-files:
     README.md, CHANGELOG.md, examples/*.hs
