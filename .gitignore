@@ -6,4 +6,8 @@ cabal-dev
 *.chs.h
 *.sw[po]
 .virthualenv
-.cabal-sandbox
+dist-newstyle
+.stack-work
+tags
+.ghc.environment.*
+cabal.project.local~
